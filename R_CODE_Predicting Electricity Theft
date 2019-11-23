@@ -1,0 +1,327 @@
+setwd("/Users/varun/Downloads/Theses/new_merge")
+filenames <- list.files(path="/Users/varun/Downloads/Theses/new_merge",pattern="*.csv")#joining Socio-econmic data .CSV files
+fullpath=file.path("/Users/varun/Downloads/Theses/new_merge",filenames)
+dataset <- do.call("rbind",lapply(filenames,FUN=function(files){ read.csv(files)}))
+dataset <- dataset[, -(1:7)]
+dataset <- dataset[, -(2:4)]
+dataset <- dataset[, -(6:14)]
+dataset <- dataset[, -(9:14)]
+dataset <- dataset[, -(9:14)]
+dataset <- dataset[, -(10:11)]
+dataset <- dataset[, -(11:12)]
+dataset <- dataset[, -(12:58)]
+colnames(experiment_3)
+experiment_3 <- experiment_3[, -(15)]
+
+### loding T&D Losses data #######
+TDLosses <- read.csv("/Users/varun/Downloads/Theses/T&DLosses.csv", header = T, na.strings = c(""), stringsAsFactors = T)
+experiment_3 <- merge(x = dataset, y = TDLosses, by = "District_Name", all = TRUE)
+colnames(experiment_3)
+
+#Removing unwanted rows##
+experiment_3 <- experiment_3[, -(2:9)]
+
+#Summary of the data
+summary(experiment_3)
+class(experiment_3$Total.Population.Person)
+
+print(table(experiment_3$District_Name)) #Distribution of the data
+
+################ EXPLORATORY ANALYSIS OF THE DATA #####################
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+ggplot(experiment_3, aes(x = Total.Population.Person)) + 
+  geom_density(trim = TRUE) + 
+  geom_density(data = experiment_3, trim = TRUE, col = "red")
+
+
+ggplot(experiment_3, aes(x = log1p(Total.Population.Person))) + ###Log transformation
+  geom_density(trim = TRUE) + 
+  geom_density(data = experiment_3, trim = TRUE, col = "red")
+
+#########FS: Boruta #######
+
+install.packages("Boruta")
+library(Boruta)
+boruta.data <- Boruta(log1p(T.DLosses)~., data = experiment_3, doTrace = 2)
+plot(boruta.data, xlab = "", xaxt = "n")
+lz<-lapply(1:ncol(boruta.data$ImpHistory),function(i)
+  boruta.data$ImpHistory[is.finite(boruta.data$ImpHistory[,i]),i])
+names(lz) <- colnames(boruta.data$ImpHistory)
+Labels <- sort(sapply(lz,median))
+axis(side = 1,las=2,labels = names(Labels),
+     at = 1:ncol(boruta.data$ImpHistory), cex.axis = 0.7)
+
+experiment_3 <- experiment_3[, -(1:7)]
+experiment_3 <- experiment_3[, -(2:4)]
+experiment_3 <- experiment_3[, -(6:14)]
+experiment_3 <- experiment_3[, -(9:14)]
+experiment_3 <- experiment_3[, -(9:14)]
+experiment_3 <- experiment_3[, -(10:11)]
+experiment_3 <- experiment_3[, -(11:12)]
+experiment_3 <- experiment_3[, -(12:58)]
+
+colnames(experiment_3)
+str(experiment_3)
+class(experiment_3$T.DLosses)
+experiment_3$T.DLosses <- as.integer(experiment_3$T.DLosses)
+########## OLS_Normal Split#############
+library(dplyr)
+index <- sample(1:nrow(experiment_3), nrow(experiment_3)*0.75, replace = F)
+training <- experiment_3[index, ]
+testing <- experiment_3[-index, ]
+ols_lm <- lm(T.DLosses~. -District_Name, data = training)
+summary(ols_lm)
+coef(ols_lm)
+prediction <- predict(ols_lm, testing$T.DLosses)
+prediction
+
+RMSE = function(error){sqrt(mean(error^2))} #function created for RMSE
+RMSE(ols_lm$residuals)
+
+######## OLS_log_parameter ##############
+library(caret)
+library(transport)
+set.seed(1234)
+splitIndex <- createDataPartition(experiment_3$T.DLosses, p = .50,
+                                  list = FALSE,
+                                  times = 1)
+trainSplit <- experiment_3[ splitIndex,]
+testSplit <- experiment_3[-splitIndex,]
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+ols_lm_log <- lm(log1p(T.DLosses)~ log1p(No.of.Households) + log1p(Total.Population.Person) + log1p(Total.Population.Male) + 
+               log1p(Total.Population.Female) + log1p(Literates.Population.Person) + log1p(Literates.Population.Male) + 
+               log1p(Literates.Population.Female) + log1p(Main.Agricultural.Labourers.Population.Person) +
+               log1p(Main.Household.Industries.Population.Person) + log1p(Main.Other.Workers.Population.Person) + 
+               log1p(Main.Other.Workers.Population.Person) + log1p(Non.Working.Population.Person) + log1p(Non.Working.Population.Male) + 
+               log1p(Non.Working.Population.Female), data = trainSplit, trControl = ctrl)
+
+summary(ols_lm_log)
+prediction_log <- predict(ols_lm, testing$T.DLosses)
+prediction_log
+RMSE(ols_lm_log$residuals)
+
+######## Ridge_normal #######
+
+install.packages("glmnet")
+library(glmnet)
+
+y <- experiment_3$T.DLosses
+x <- model.matrix(T.DLosses~. - District_Name, data = experiment_3)[,-1]
+lambda <- 10^seq(10, -2, length = 100)
+#create test and training sets
+
+set.seed(896)
+train <- sample(1:nrow(x), nrow(x)/2)
+test <- (-train)
+ytest <- y[test]
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = lambda)
+ridge.mod <- glmnet(x[train,], y[train], alpha = 0, lambda = lambda)
+summary(ridge.mod)
+coef(ridge.mod)
+
+pred <- predict(ridge.mod, s = 0, exact = F, type = 'coefficients')[1:14,]
+pred
+
+cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = lambda) ### tuning the hyperparameter
+cv.out <- cv.glmnet(x[train,], y[train], alpha = 0)
+plot(cv_fit)
+
+opt_lambda <- cv_fit$lambda.min ### optimal value of lambda
+opt_lambda
+
+fit <- cv_fit$glmnet.fit
+summary(fit)
+bestlam <- cv.out$lambda.min
+best_ridge <- glmnet(x, y, alpha = 0, lambda = 0.093) #best model with opt_lambda
+coef(best_ridge)
+
+y_predicted <- predict(fit, s = opt_lambda, newx = x)
+y_predicted
+postResample(pred = y_predicted, obs = test$T.DLosses)
+#calculating R^2 #
+sst <- sum((y - mean(y))^2)
+sse <- sum((y_predicted - y)^2)
+rsq <- 1 - sse / sst
+rsq
+ridge.pred <- predict(ridge.mod, s = bestlam, newx = x[test,])
+sqrt(mean((ridge.pred-ytest)^2)) #RMSE#
+#check coefficents
+out = glmnet(x[train,],y[train],alpha = 0)
+predict(ridge.mod, type = "coefficients", s = bestlam)[1:14,]
+
+#### ridge_log ####
+y <- log1p(experiment_3$T.DLosses)
+
+x <- model.matrix(log1p(T.DLosses)~ log1p(No.of.Households) + log1p(Total.Population.Person) + log1p(Total.Population.Male) + 
+  log1p(Total.Population.Female) + log1p(Literates.Population.Person) + log1p(Literates.Population.Male) + 
+  log1p(Literates.Population.Female) + log1p(Main.Agricultural.Labourers.Population.Person) +
+  log1p(Main.Household.Industries.Population.Person) + log1p(Main.Other.Workers.Population.Person) + 
+  log1p(Main.Other.Workers.Population.Person) + log1p(Non.Working.Population.Person) + log1p(Non.Working.Population.Male) + 
+  log1p(Non.Working.Population.Female), data = experiment_3)[,-1]
+
+##############SVR###################
+experiment_3$T.DLosses <- as.integer(experiment_3$T.DLosses)
+training$T.DLosses <- as.integer(training$T.DLosses)
+testing$T.DLosses <- as.integer(testing$T.DLosses)
+install.packages("e1071")
+library(e1071)
+#Regression with SVM
+modelSVM <- svm(T.DLosses~. -District_Name, training)
+modelSVM
+#Predict using SVM regression
+predsvm = predict(modelSVM, testing)
+plot(predsvm)
+#Overlay SVM Predictions on Scatter Plot
+points(experiment_3$T.DLosses, predsvm, col = "red", pch=16)
+summary(modelSVM)
+summary(predsvm)
+#Calculate RMSE
+install.packages("Metrics")
+library(Metrics)
+RMSEsvm <- rmse(predsvm, experiment_3$T.DLosses)
+##Calculate parameters of the SVR model
+#####Yi = W.K(xi,x) + b##########
+#Find value of W
+W = t(modelSVM$coefs) %*% modelSVM$SV
+b = modelSVM$rho
+## Tuning SVR model by varying values of maximum allowable error and cost parameter
+
+#Tune the SVM model
+OptModelsvm=tune(svm, T.DLosses~., data=experiment_3,ranges=list(elsilon=seq(0,1,0.1), cost=1:100)) #takes 8 hours to complete the exectn
+plot(OptModelsvm)
+print(OptModelsvm)
+
+## Select the best model out of 1100 trained models and compute RMSE
+
+#Find out the best model
+BstModel=OptModelsvm$best.model
+
+#Predict Y using best model
+Predidbst=predict(BstModel,experiment_3)
+
+#Calculate RMSE of the best model 
+RMSEBst=rmse(Predidbst,experiment_3$T.DLosses)
+
+#### DT ####
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+
+index <- sample(1:nrow(experiment_3), nrow(experiment_3)*0.75, replace = F)
+training <- experiment_3[index, ]
+testing <- experiment_3[-index, ]
+str(experiment_3)
+
+dt <- rpart(T.DLosses~. -District_Name, data = training)
+plot(dt)
+text(dt)
+summary(dt)
+fancyRpartPlot(dt)
+rpartPrediction <- predict(dt, testing)
+rpartPrediction
+
+##### Random forest - Regression ####
+library(randomForest)
+index <- sample(1:nrow(experiment_3), nrow(experiment_3)*0.75, replace = F)
+training <- experiment_3[index, ]
+testing <- experiment_3[-index, ]
+forest <- randomForest(T.DLosses~. -District_Name, data = training, importance = TRUE, ntree = 3000)
+forest
+# RMSE of this optimal random forest
+which.min(forest$mse)
+sqrt(forest$mse[which.min(forest$mse)])
+plot(forest)
+
+##### Binning approach ########
+experiment_3$Prediction <- ifelse(experiment_3$T.DLosses > 0 & experiment_3$T.DLosses <= 21.6, 'Not a Theft', 
+                                  
+                                  ifelse(experiment_3$T.DLosses >= 21.7, 'Confirm Theft','x'))
+
+
+###### DT with HyperP and CV #####
+library(caret)
+library(transport)
+set.seed(1234)
+splitIndex <- createDataPartition(experiment_3$T.DLosses, p = .50,
+                                  list = FALSE,
+                                  times = 1)
+trainSplit <- experiment_3[ splitIndex,]
+testSplit <- experiment_3[-splitIndex,]
+
+model_control = rpart.control(xval = 10, cp = 0.00001)
+fit_original = rpart(T.DLosses~. -District_Name,control = model_control, data = trainSplit)
+pred_test_ori = predict(fit_original, newdata = testSplit, type = "class")
+cm = table(testSplit$T.DLosses, pred_test_ori)
+cm
+experiment_3$T.DLosses <- as.factor(experiment_3$T.DLosses)
+ctrl <- trainControl(method = "cv", number = 5, search = "grid")
+crtl_random <- trainControl(method = "cv", number = 5, search = "random")
+
+
+dt <- rpart(T.DLosses~. -District_Name, data = trainSplit, method = "class", 
+            control = trainControl(cp = 0.2, minisplit = 5, minibucket = 5, maxdepth = 10))
+plot(dt)
+text(dt)
+summary(dt)
+fancyRpartPlot(dt)
+rpartPrediction <- predict(dt, testSplit, type = "class")
+confusionMatrix(table(rpartPrediction, testSplit$T.DLosses))
+
+#### DT - SMOTE ###
+install.packages("DMwR")
+library(DMwR)
+class(balanced.data$T.DLosses)                
+index <- sample(1:nrow(experiment_3), nrow(experiment_3)*0.75, replace = F)
+training <- experiment_3[index, ]
+testing <- experiment_3[-index, ]
+balanced.data <- SMOTE(T.DLosses~. -District_Name, training, perc.over = 4800, k = 5, perc.under = 1000)
+regressionTree <- rpart(T.DLosses~. -District_Name, data = balanced.data, method = "class")
+pred_dt <- predict(regressionTree, testing)
+cm <- confusionMatrix(data=pred_dt,  
+                      reference=testing$T.DLosses)
+cm = table(testing$T.DLosses, pred_dt)
+
+cm
+
+
+########### SMOTE for RF #######################
+library(DMwR)
+
+balanced.data <- SMOTE(T.DLosses~. -District_Name, training, perc.over = 4800, k = 5, perc.under = 1000)
+rf = randomForest(T.DLosses~. -District_Name,  
+                  ntree = 100,
+                  data = balanced.data)
+rf
+plot(rf)
+pred_rf <- predict(rf, testSplit)
+cm <- confusionMatrix(data=pred_rf,  
+                      reference=testSplit$T.DLosses)
+cm
+varImpPlot(rf)
+######PDP PLOTS #######################
+install.packages("pdp")
+library(pdp)
+partialPlot(rf, pred.data = training, x.var = "Non.Working.Population.Male", main = "Unemployment") # Figure 2
+partialPlot(forest, pred.data = training, x.var = "No.of.Households", main = "Households")
+partialPlot(forest, pred.data = training, x.var = "Total.Population.Person", main = "Population")
+partialPlot(forest, pred.data = training, x.var = "Total.Population.Male", main = "Population_Male")
+partialPlot(forest, pred.data = training, x.var = "Literates.Population.Person", main = "Literacy")
+
+
+
+
+
+
+
+
+
+
+
+
+
