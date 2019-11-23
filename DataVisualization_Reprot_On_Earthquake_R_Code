@@ -1,0 +1,54 @@
+R studio is used to clean and process the data as per the requirement of the study.
+
+1. For the Japan Case Study the data has been collected from https:// www.kaggle.com/aerodinamicc/earthquakes-in-japan/home. 
+The data consisted of 22 columns. As not all the columns were needed for the study we have reduced the columns. 
+Null values are removed.
+
+Following is the code used to clean this data: 
+
+setwd("/Users/varun/Documents/DATA VISUALISATION/earthquake/“)
+
+EQ_Japan <- read.csv("/Users/varun/Documents/DATA VISUALISATION/earthquake/ Japan earthquakes 2001 - 2018.csv”)
+library(lubridate)
+EQ_Japan$time <- format(as.POSIXct(EQ_Japan,format=‘%Y-%m-%dT%H:%M: %S'),format='%Y-%m-%d')
+
+EQ_Japan$time <- format(as.POSIXct(EQ_Japan,format=‘%Y-%m-%dT%H:%M: %S'),format='%Y-%m-%d')
+typeof(b)
+b <- as.character(EQ_Japan$time) a <- strtrim(b,19)
+EQ_Japan$time <- a
+EQ_Japan$time <- as.Date(EQ_Japan$time) EQ_Japan$nst <- NULL
+EQ_Japan$net <- NULL
+EQ_Japan$updated <- NULL 
+EQ_Japan$horizontalError <- NULL 
+EQ_Japan$depthError <- NULL 
+EQ_Japan$magError <- NULL 
+EQ_Japan$magNst <- NULL 
+EQ_Japan$magSource <- NULL 
+EQ_Japan$locationSource <- NULL
+
+colnames(EQ_Japan)[1] <- "Date"
+write.csv(EQ_Japan,'/Users/varun/Documents/DATA VISUALISATION/earthquake/Japan earthquakes 2001 - 2018.csv', row.names = FALSE)
+
+2. For the Indian Subcontinent Case study the data is collected from https:// www.kaggle.com/nksingh673/earthquake-indian-subcontinent . This data too contained 22 columns.
+Following is the code used to clean this data:
+setwd("/Users/varun/Documents/DATA VISUALISATION/earthquake/“)
+EQ_Indiasub <- read.csv("/Users/varun/Documents/DATA VISUALISATION/earthquake/ Earthquake.csv”)
+b <- as.character(EQ_Indiasub$time) typeof(b)
+a <- strtrim(b,19)
+EQ_Indiasub$time <- a
+
+EQ_Indiasub$time <- as.Date(EQ_Indiasub$time)
+library(lubridate)
+EQ_Indiasub$time <- format(as.POSIXct(EQ_Indiasub,format='%Y-%m-%dT%H:%M: %S'),format='%Y-%m-%d')
+write.csv(EQ_Indiasub,'/Users/varun/Documents/DATA VISUALISATION/earthquake/ Earthquake.csv', row.names = FALSE)
+
+3. For the Turkey case study is data is taken from https://www.kaggle.com/ caganseval/earthquake.
+Following is the code used to clean this data:
+setwd("/Users/varun/Documents/DATA VISUALISATION/earthquake/")
+EQ_turkey <- read.csv("/Users/varun/Documents/DATA VISUALISATION/earthquake/ earthquake_turkey.csv")
+
+colnames(EQ_turkey)[1] <- "Date" 
+colnames(EQ_turkey)[3] <- "latitude" 
+colnames(EQ_turkey)[4] <- "longitude" 
+colnames(EQ_turkey)[15] <- “mag"
+write.csv(EQ_turkey,'/Users/varun/Documents/DATA VISUALISATION/earthquake/ earthquake_turkey.csv', row.names = FALSE)
